@@ -1,0 +1,831 @@
+ <!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ILR 行程動態規劃 v82.26.18</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy:    #1e3a5f;
+            --navy2:   #2c4f7c;
+            --teal:    #0369a1;
+            --gold:    #b45309;
+            --gold-l:  #d97706;
+            --bg:      #f0f4f8;
+            --bg-card: #ffffff;
+            --border:  #c8d6e5;
+            --red:     #b91c1c;
+            --green:   #15803d;
+            --amber:   #92400e;
+            --text:    #1a2535;
+            --soft:    #3d5370;
+            --muted:   #5a7290;
+            --shadow:  0 2px 12px rgba(30,58,95,0.10);
+        }
+        * { box-sizing: border-box; }
+        body {
+            padding: 20px 16px 40px;
+            background: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            color: var(--text);
+            font-size: 15px;
+        }
+        .page-header {
+            background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 100%);
+            border-radius: 14px; padding: 18px 24px; margin-bottom: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 12px; box-shadow: var(--shadow);
+        }
+        .page-header h4 { font-family: 'DM Serif Display', serif; color: #ffffff; font-size: 22px; margin: 0; }
+        .page-header .subtitle { color: #b8d0e8; font-size: 12px; margin-top: 3px; }
+        .page-header .subtitle span { color: #fcd34d; font-weight: 700; }
+
+        .btn-add {
+            background: rgba(255,255,255,0.15); color: #ffffff;
+            border: 1px solid rgba(255,255,255,0.35); border-radius: 7px;
+            padding: 7px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+        }
+        .btn-add:hover { background: rgba(255,255,255,0.25); }
+        .btn-save {
+            background: #fcd34d; color: #1a1200; border: none;
+            border-radius: 7px; padding: 7px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+        }
+        .btn-save:hover { background: #fde68a; }
+        .card { border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); background: var(--bg-card); }
+        .card-title {
+            font-family: 'DM Serif Display', serif; font-size: 15px; color: var(--navy);
+            border-bottom: 2px solid #dde8f2; padding-bottom: 8px; margin-bottom: 12px;
+        }
+        .stat-block { text-align: center; }
+        .stat-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; color: var(--soft); font-weight: 600; }
+        .stat-value { font-family: 'DM Serif Display', serif; font-size: 40px; line-height: 1; }
+        .stat-value.danger  { color: #c0272d; }
+        .stat-value.success { color: #166534; }
+        .stat-suffix { font-size: 13px; color: var(--muted); margin-left: 4px; }
+        .divider-v { border-left: 1px solid var(--border); }
+        .reminder-box {
+            border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-top: 10px;
+            transition: background 0.3s, border-color 0.3s, color 0.3s;
+        }
+        .reminder-box.safe    { background: #dcfce7; border: 1px solid #86efac; color: #14532d; }
+        .reminder-box.warning { background: #fff7ed; border: 1px solid #fdba74; color: #92400e; }
+        .reminder-box.danger  { background: #fee2e2; border: 1px solid #fca5a5; color: #7f1d1d; }
+        .kd-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .kd-table { width: 100%; min-width: 280px; table-layout: auto !important; }
+        .kd-table td { padding: 5px 6px !important; border: none !important; font-size: 13px; vertical-align: middle; white-space: nowrap; }
+        .kd-label { color: var(--soft); font-weight: 600; }
+        .kd-table input[type="date"] {
+            border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px;
+            font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--navy);
+            font-weight: 700; background: #f0f6fc; outline: none; max-width: 140px; width: 100%;
+        }
+        .kd-table input[type="date"]:focus { border-color: var(--teal); }
+        .badge-ok   { background: #dcfce7; color: #14532d; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .badge-err  { background: #fee2e2; color: #7f1d1d; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .badge-info { background: #dbeafe; color: #1e3a8a; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+        .table-wrap {
+            background: var(--bg-card); border-radius: 12px; box-shadow: var(--shadow);
+            overflow-x: auto; -webkit-overflow-scrolling: touch;
+            margin-bottom: 20px; position: relative;
+        }
+        table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; min-width: 820px; }
+        .kd-table, .tax-table { min-width: unset !important; table-layout: auto !important; }
+        .table th {
+            background: var(--navy) !important; color: #d4e8f8 !important;
+            font-size: 12px; font-weight: 700; padding: 10px 8px !important;
+            text-align: center; border: 1px solid var(--navy2) !important; white-space: nowrap;
+        }
+        .table td {
+            text-align: center; border: 1px solid #c4d4e4 !important;
+            vertical-align: middle !important; padding: 7px 6px !important;
+            font-size: 13px; color: var(--text);
+        }
+        .w-date { width:13%; } .w-type { width:9%; } .w-note { width:13%; }
+        .w-num  { width:4.5%; } .w-roll { width:4.5%; } .w-window { width:16%; }
+        .w-total{ width:6%; }  .w-action{ width:4%; }
+        tr.row-stay    td { background: #d6eedd; }
+        tr.row-absence td { background: #fae3c8; }
+        tr.highlight-alert td { background: #fef08a !important; }
+        tr.gap-error       td { background: #fecaca !important; }
+        .edit-input {
+            border: 1px solid #b0c4d8; background: #ffffff; border-radius: 5px;
+            padding: 4px 3px; width: 100%; text-align: center; font-size: 13px;
+            font-family: 'DM Sans', sans-serif; color: var(--text); outline: none;
+            transition: border-color 0.15s;
+        }
+        .edit-input:focus { border-color: var(--teal); box-shadow: 0 0 0 2px rgba(3,105,161,0.15); }
+        .edit-note { text-align: left; padding-left: 4px; }
+        select.edit-input { cursor: pointer; }
+        select.type-stay    { color: #166534; font-weight: 700; }
+        select.type-absence { color: #b91c1c; font-weight: 700; }
+        .col-window-val { font-size: 11px; color: var(--soft); letter-spacing: -0.3px; font-weight: 500; }
+        .col-roll-warn { color: #92400e; font-weight: 700; }
+        .col-roll-ok   { color: #166534; font-weight: 700; }
+        .fw-bold { font-weight: 700; }
+        .btn-del { background: none; border: none; color: #8a9db0; font-size: 16px; cursor: pointer; padding: 0 4px; line-height: 1; }
+        .btn-del:hover { color: var(--red); }
+        #gapAlertBanner {
+            position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+            z-index: 1050; display: none; background: #fff1f2; border: 1px solid #f87171;
+            border-radius: 10px; padding: 10px 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            min-width: 300px; text-align: center; font-size: 12px; color: #7f1d1d; font-weight: 700;
+        }
+        #gapAlertDetails { font-weight: 500; margin-top: 4px; color: #991b1b; font-size: 12px; }
+        .tax-table { table-layout: auto !important; width: 100% !important; min-width: 220px; }
+        .tax-table th { background: var(--navy) !important; color: #d4e8f8 !important; font-size: 13px; padding: 8px 10px !important; border-color: var(--navy2) !important; white-space: nowrap; }
+        .tax-table td { padding: 6px 10px !important; font-size: 13px; border-color: #c4d4e4 !important; white-space: nowrap; color: var(--text); }
+        .badge-resident { background: #dcfce7; color: #14532d; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+        .badge-nonres   { background: #e8edf2; color: #3d5370; border-radius: 4px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+        .scroll-hint {
+            position: fixed; z-index: 999; width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(30, 58, 95, 0.38); color: #ffffff; font-size: 22px;
+            line-height: 44px; text-align: center; pointer-events: none; opacity: 0;
+            transition: opacity 0.3s ease; user-select: none; -webkit-user-select: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.30);
+        }
+        .scroll-hint.visible { opacity: 1; }
+        #hintLeft  { left: 6px; }
+        #hintRight { right: 6px; }
+        #kdHintLeft, #kdHintRight { width: 36px; height: 36px; font-size: 18px; line-height: 36px; z-index: 998; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 0.8cm; }
+            .no-print    { display: none !important; }
+            .scroll-hint { display: none !important; }
+            body { background: white !important; padding: 0 !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            .page-header { background: linear-gradient(135deg, #1e3a5f 0%, #2c4f7c 100%) !important; }
+            tr.row-stay        td { background: #d6eedd !important; }
+            tr.row-absence     td { background: #fae3c8 !important; }
+            tr.highlight-alert td { background: #fef08a !important; }
+            tr.gap-error       td { background: #fecaca !important; }
+            .table th { background: #1e3a5f !important; color: #d4e8f8 !important; }
+            input[type="date"].edit-input { -webkit-appearance: none !important; appearance: none !important; border: none !important; background: transparent !important; padding: 0 !important; font-size: 13px !important; font-family: inherit !important; color: inherit !important; width: auto !important; }
+            input[type="date"]::-webkit-calendar-picker-indicator,
+            input[type="date"]::-webkit-inner-spin-button,
+            input[type="date"]::-webkit-clear-button { display: none !important; }
+            input[type="text"].edit-input { border: none !important; background: transparent !important; padding: 0 !important; font-size: 13px !important; color: inherit !important; }
+            input[type="text"].edit-input::placeholder { color: transparent !important; }
+            select.edit-input { -webkit-appearance: none !important; appearance: none !important; border: none !important; background: transparent !important; padding: 0 !important; font-size: 13px !important; }
+            .card { box-shadow: none !important; border: 1px solid #c8d6e5 !important; }
+            .table-wrap { box-shadow: none !important; }
+            tr { page-break-inside: avoid; }
+        }
+
+        #printOnlyHeader { display: none !important; }
+        @media print {
+            #printOnlyHeader { display: block !important; }
+        }
+
+        @media screen and (orientation: landscape) and (max-width: 1024px) {
+            body { font-size: 16px; }
+            .page-header { padding: 14px 20px; }
+            .page-header h4 { font-size: 24px; }
+            .page-header .subtitle { font-size: 13px; }
+            .btn-add, .btn-save { font-size: 14px; padding: 8px 18px; }
+            .card-title { font-size: 16px; }
+            .stat-label { font-size: 12px; }
+            .stat-value { font-size: 44px; }
+            .stat-suffix { font-size: 14px; }
+            .reminder-box { font-size: 14px; }
+            .kd-table td { font-size: 14px !important; }
+            .kd-table input[type="date"] { font-size: 14px; }
+            .badge-ok, .badge-err, .badge-info { font-size: 12px; padding: 3px 10px; }
+            .table th { font-size: 13px !important; padding: 11px 9px !important; }
+            .table td { font-size: 14px !important; padding: 8px 7px !important; }
+            .edit-input { font-size: 14px; }
+            .col-window-val { font-size: 12px; }
+            .tax-table th { font-size: 14px !important; padding: 9px 11px !important; }
+            .tax-table td { font-size: 14px !important; padding: 7px 11px !important; }
+            .badge-resident, .badge-nonres { font-size: 12px; padding: 3px 10px; }
+        }
+
+        @media screen and (orientation: landscape) and (min-width: 1024px) {
+            body { font-size: 16px; }
+            .page-header h4 { font-size: 26px; }
+            .page-header .subtitle { font-size: 14px; }
+            .btn-add, .btn-save { font-size: 14px; padding: 8px 20px; }
+            .card-title { font-size: 17px; }
+            .stat-label { font-size: 13px; }
+            .stat-value { font-size: 48px; }
+            .stat-suffix { font-size: 15px; }
+            .reminder-box { font-size: 15px; }
+            .kd-table td { font-size: 15px !important; }
+            .kd-table input[type="date"] { font-size: 15px; max-width: 160px; }
+            .badge-ok, .badge-err, .badge-info { font-size: 13px; padding: 3px 10px; }
+            .table th { font-size: 13px !important; padding: 11px 10px !important; }
+            .table td { font-size: 14px !important; padding: 9px 8px !important; }
+            .edit-input { font-size: 14px; }
+            .col-window-val { font-size: 12px; }
+            .tax-table th { font-size: 15px !important; padding: 9px 12px !important; }
+            .tax-table td { font-size: 15px !important; padding: 8px 12px !important; }
+            .badge-resident, .badge-nonres { font-size: 13px; padding: 3px 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="scroll-hint no-print" id="hintLeft">&#8592;</div>
+    <div class="scroll-hint no-print" id="hintRight">&#8594;</div>
+    <div class="scroll-hint no-print" id="kdHintLeft">&#8592;</div>
+    <div class="scroll-hint no-print" id="kdHintRight">&#8594;</div>
+
+    <div id="gapAlertBanner" class="no-print">
+        ⚠️ 發現日期不連續 (Gap)！請檢查紅色標記的時段。
+        <div id="gapAlertDetails"></div>
+    </div>
+
+    <div class="page-header no-print">
+        <div>
+            <h4>📊 ILR 行程動態規劃</h4>
+            <div class="subtitle">HTML version v82.26.18 ｜ 英國時間: <span id="exeTime">-</span></div>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button class="btn-add" onclick="addRow('','','Stay','')">➕ 新增時段</button>
+            <button class="btn-save" id="btnSavePdf" onclick="generatePDF();">💾 儲存 / 列印 PDF</button>
+        </div>
+    </div>
+
+    <div style="display:none" id="printOnlyHeader">
+        <div style="background:linear-gradient(135deg,#1e3a5f,#2c4f7c);border-radius:10px;padding:10px 18px;margin-bottom:14px">
+            <div style="color:#ffffff;font-size:18px;font-weight:700">📊 ILR 行程動態規劃</div>
+            <div style="color:#b8d0e8;font-size:12px;margin-top:3px">HTML version v82.26.18 ｜ 列印時間（英國）：<span id="printDateTime">-</span></div>
+        </div>
+    </div>
+
+    <div class="row mb-3 g-3">
+        <div class="col-md-7">
+            <div class="card p-3 h-100">
+                <div class="card-title">📌 ILR 旅遊規劃摘要</div>
+                <div class="row text-center align-items-center">
+                    <div class="col-6">
+                        <div class="stat-block">
+                            <div class="stat-label">當前最高滾動天數</div>
+                            <div class="stat-value danger">
+                                <span id="maxAbsence">0</span>
+                                <span class="stat-suffix">/ 180 天</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6 divider-v">
+                        <div class="stat-block">
+                            <div class="stat-label">未來剩餘旅遊額度</div>
+                            <div class="stat-value success">
+                                <span id="budgetAbsence">180</span>
+                                <span class="stat-suffix">天</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="reminder-box safe" id="reminderBox">
+                    <strong><span id="reminderIcon">📅</span> 行動提醒：</strong> <span id="reminderTxt">剩餘額度充裕，且預計申請日人在英國。</span>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card p-3 h-100">
+                <div class="card-title">🗓️ 關鍵日期報告區</div>
+                <div class="kd-wrap" id="kdWrap">
+                    <table class="kd-table" style="border-collapse:collapse">
+                        <tbody>
+                            <tr>
+                                <td class="kd-label">初始入境日:</td>
+                                <td><input type="date" id="entryDate" value="2023-03-13" onchange="calculateAll()"></td>
+                                <td><span class="badge-info">Start of 5-year</span></td>
+                            </tr>
+                            <tr>
+                                <td class="kd-label">Visa 到期日:</td>
+                                <td><input type="date" id="visaDate" value="2027-08-11" onchange="calculateAll()"></td>
+                                <td><span class="badge-info">Current expiry</span></td>
+                            </tr>
+                            <tr>
+                                <td class="kd-label">Visa續期申請日:</td>
+                                <td><input type="date" id="extDate" value="2026-04-27" onchange="calculateAll()"></td>
+                                <td><span id="extCheck" class="badge-ok">✅ 合法</span></td>
+                            </tr>
+                            <tr>
+                                <td class="kd-label">ILR 最早申請日:</td>
+                                <td><span id="ilrTargetDate" style="color:#1e3a5f;font-size:13px;font-weight:700">-</span></td>
+                                <td><span id="ilrPresenceCheck" class="badge-ok">✅ 當天在英</span></td>
+                            </tr>
+                            <tr>
+                                <td class="kd-label">入籍最早申請日:</td>
+                                <td><span id="natTargetDate" style="color:#3d5370;font-size:13px;font-weight:600">-</span></td>
+                                <td><span class="badge-info">ILR + 1 year</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="table-wrap" id="tableWrap">
+        <table class="table table-sm table-bordered m-0">
+            <thead>
+                <tr>
+                    <th rowspan="3" class="w-date">開始日期</th>
+                    <th rowspan="3" class="w-date">結束日期</th>
+                    <th rowspan="3" class="w-type">時段類型</th>
+                    <th rowspan="3" class="w-note">備註</th>
+                    <th colspan="2">離境天數</th>
+                    <th colspan="2">滾動 365 天</th>
+                    <th colspan="2">在英天數</th>
+                    <th rowspan="3" class="w-total">累積<br>總天數</th>
+                    <th rowspan="3" class="w-action no-print">操作</th>
+                </tr>
+                <tr>
+                    <th colspan="2">天數</th>
+                    <th colspan="2">狀況</th>
+                    <th colspan="2">天數</th>
+                </tr>
+                <tr>
+                    <th class="w-num">單次</th>
+                    <th class="w-num">累積</th>
+                    <th class="w-roll">天數</th>
+                    <th class="w-window">日期</th>
+                    <th class="w-num">單次</th>
+                    <th class="w-num">累積</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="row">
+        <div class="col-12 col-md-5">
+            <div class="card p-3">
+                <div class="card-title">🏠 英國稅務居民 (183天/年)</div>
+                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+                    <table class="table table-sm table-bordered tax-table m-0 text-center" style="min-width:220px;table-layout:auto!important">
+                        <thead>
+                            <tr>
+                                <th>稅務年度</th>
+                                <th>在英天數</th>
+                                <th>狀態</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taxBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const initialData = [
+        { s:"2023-03-13", e:"2024-09-01", type:"Stay",    note:"" },
+        { s:"2024-09-02", e:"2024-10-06", type:"Absence", note:"離境 P1" },
+        { s:"2024-10-07", e:"2025-01-02", type:"Stay",    note:"" },
+        { s:"2025-01-03", e:"2025-03-23", type:"Absence", note:"避寒 P2" },
+        { s:"2025-03-24", e:"2026-01-05", type:"Stay",    note:"" },
+        { s:"2026-01-06", e:"2026-03-28", type:"Absence", note:"避寒 P3" },
+        { s:"2026-03-29", e:"2026-04-26", type:"Stay",    note:"" },
+        { s:"2026-04-27", e:"2026-08-31", type:"Stay",    note:"VXD 已提交" },
+        { s:"2026-09-01", e:"2027-01-04", type:"Stay",    note:"" },
+        { s:"2027-01-05", e:"2027-03-28", type:"Absence", note:"P4 28/05訂" },
+        { s:"2027-03-29", e:"2027-07-31", type:"Stay",    note:"" },
+        { s:"2027-08-01", e:"2027-08-21", type:"Stay",    note:"夏天遊取消" },
+        { s:"2027-08-22", e:"2027-10-31", type:"Stay",    note:"" },
+        { s:"2027-11-01", e:"2028-02-11", type:"Absence", note:"離境 P6" },
+        { s:"2028-02-12", e:"2028-12-01", type:"Stay",    note:"ILR申請" }
+    ];
+
+    function makeHints(wrap, leftEl, rightEl, arrowSize, autoHide, cornerMode) {
+        var timer = null;
+        var hideDuration = autoHide || 3000;
+        function reposition() {
+            var rect = wrap.getBoundingClientRect();
+            var half = arrowSize / 2;
+            var viewH = window.innerHeight || document.documentElement.clientHeight;
+            if (cornerMode) {
+                var topOfContainer = rect.top, bottomOfContainer = rect.bottom;
+                if (bottomOfContainer < 0 || topOfContainer > viewH) {
+                    leftEl.style.opacity = '0'; rightEl.style.opacity = '0'; return;
+                }
+                var arrowTop = topOfContainer <= 0 ? 8 : Math.round(topOfContainer + 8);
+                leftEl.style.top  = arrowTop + 'px'; rightEl.style.top  = arrowTop + 'px';
+            } else {
+                var midY = rect.top + rect.height / 2;
+                leftEl.style.top  = Math.round(midY - half) + 'px';
+                rightEl.style.top = Math.round(midY - half) + 'px';
+            }
+            leftEl.style.left  = Math.round(rect.left + 4) + 'px';
+            rightEl.style.left = Math.round(rect.right - arrowSize - 4) + 'px';
+            leftEl.style.right = 'auto'; rightEl.style.right = 'auto';
+        }
+        function hide() { leftEl.classList.remove('visible'); rightEl.classList.remove('visible'); }
+        function update() {
+            var sl = wrap.scrollLeft, maxScroll = wrap.scrollWidth - wrap.clientWidth;
+            reposition();
+            if (maxScroll <= 2) { hide(); return; }
+            if (sl > 4)             leftEl.classList.add('visible');  else leftEl.classList.remove('visible');
+            if (sl < maxScroll - 4) rightEl.classList.add('visible'); else rightEl.classList.remove('visible');
+            clearTimeout(timer); timer = setTimeout(hide, hideDuration);
+        }
+        function flash() {
+            var maxScroll = wrap.scrollWidth - wrap.clientWidth;
+            reposition();
+            if (maxScroll <= 2) { hide(); return; }
+            rightEl.classList.add('visible'); leftEl.classList.remove('visible');
+            clearTimeout(timer); timer = setTimeout(hide, hideDuration);
+        }
+        wrap.addEventListener('scroll', update);
+        return { flash: flash, reposition: reposition, hide: hide };
+    }
+
+    var tableWrap   = document.getElementById('tableWrap');
+    var kdWrap      = document.getElementById('kdWrap');
+    var hintLeft    = document.getElementById('hintLeft');
+    var hintRight   = document.getElementById('hintRight');
+    var kdHintLeft  = document.getElementById('kdHintLeft');
+    var kdHintRight = document.getElementById('kdHintRight');
+    var mainHints = makeHints(tableWrap, hintLeft,   hintRight,   44, 5000, true);
+    var kdHints   = makeHints(kdWrap,    kdHintLeft, kdHintRight, 36, 3000, false);
+    function showScrollHints() { mainHints.flash(); kdHints.flash(); }
+    window.addEventListener('scroll', function() { mainHints.reposition(); kdHints.reposition(); }, { passive: true });
+    window.addEventListener('resize',            function() { setTimeout(showScrollHints, 200); });
+    window.addEventListener('orientationchange', function() { setTimeout(showScrollHints, 400); });
+
+    function updatePrintDateTime() {
+        const now = new Date();
+        const opts = { timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit',
+                       hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false };
+        const str = now.toLocaleString('zh-Hant', opts).replace(/\//g, '-');
+        const el = document.getElementById('printDateTime');
+        if (el) el.textContent = str;
+    }
+    window.onbeforeprint = updatePrintDateTime;
+    window.addEventListener('beforeprint', updatePrintDateTime);
+
+    function updateUKTime() {
+        const now = new Date();
+        const options = { timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit',
+                          hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false };
+        const el = document.getElementById("exeTime");
+        if (el) el.innerText = now.toLocaleString('zh-Hant', options).replace(/\//g, '-');
+    }
+
+    function addRow(s, e, type, note) {
+        const tr = document.createElement("tr");
+        tr.className = type === 'Absence' ? 'row-absence' : 'row-stay';
+        const isFirst = document.getElementById("tableBody").rows.length === 0;
+        const startAttrs = isFirst
+            ? `readonly style="background:#f1f5f9;color:#64748b;cursor:not-allowed;border-color:#e2e8f0"`
+            : `onchange="calculateAll()"`;
+        tr.innerHTML = `
+            <td><input type="date" class="edit-input start-date" value="${s}" ${startAttrs}></td>
+            <td><input type="date" class="edit-input end-date" value="${e}" onchange="calculateAll()"></td>
+            <td>
+                <select class="edit-input row-type ${type==='Absence'?'type-absence':'type-stay'}" onchange="updateRowClass(this); calculateAll()">
+                    <option value="Stay"    ${type==='Stay'   ?'selected':''}>Stay</option>
+                    <option value="Absence" ${type==='Absence'?'selected':''}>Absence</option>
+                </select>
+            </td>
+            <td><input type="text" class="edit-input edit-note row-note" value="${note}" placeholder="備註"></td>
+            <td>0</td><td>0</td>
+            <td class="fw-bold col-roll-ok">0</td>
+            <td class="col-window-val">-</td>
+            <td>0</td><td>0</td>
+            <td class="fw-bold">0</td>
+            <td class="no-print"><button class="btn-del" onclick="this.closest('tr').remove(); calculateAll();">×</button></td>
+        `;
+        document.getElementById("tableBody").appendChild(tr);
+        calculateAll();
+    }
+
+    function updateRowClass(sel) {
+        const tr = sel.closest('tr');
+        tr.className = sel.value === 'Absence' ? 'row-absence' : 'row-stay';
+        sel.className = 'edit-input row-type ' + (sel.value==='Absence'?'type-absence':'type-stay');
+    }
+
+    function calculateAll() {
+        const rows = document.querySelectorAll("#tableBody tr");
+        let cAbs = 0, cStay = 0, total = 0, maxR = 0;
+        let gapMessages = [];
+        const entryVal = document.getElementById("entryDate").value;
+        const visaVal  = document.getElementById("visaDate").value;
+        const extVal   = document.getElementById("extDate").value;
+        if (entryVal) {
+            const firstStartInput = document.querySelector("#tableBody tr:first-child .start-date");
+            if (firstStartInput) firstStartInput.value = entryVal;
+            let d = new Date(entryVal);
+            d.setFullYear(d.getFullYear() + 5); d.setDate(d.getDate() - 28);
+            const ilrDateStr = d.toISOString().split('T')[0];
+            document.getElementById("ilrTargetDate").innerText = ilrDateStr;
+            let n = new Date(d); n.setFullYear(n.getFullYear() + 1);
+            document.getElementById("natTargetDate").innerText = n.toISOString().split('T')[0];
+
+            const ilrCheck = document.getElementById("ilrPresenceCheck");
+            if (ilrCheck) {
+                const tRows = document.querySelectorAll("#tableBody tr");
+                let inUK = false;
+                tRows.forEach(row => {
+                    const typeEl = row.querySelector(".row-type");
+                    const startEl = row.querySelector(".start-date");
+                    const endEl   = row.querySelector(".end-date");
+                    if (!typeEl || !startEl || !endEl) return;
+                    if (typeEl.value === "Absence") return;
+                    if (ilrDateStr >= startEl.value && ilrDateStr <= endEl.value) inUK = true;
+                });
+                if (inUK) {
+                    ilrCheck.textContent  = "✅ 當天在英";
+                    ilrCheck.className    = "badge-ok";
+                } else {
+                    ilrCheck.textContent  = "⚠️ 當時不在英";
+                    ilrCheck.className    = "badge-err";
+                }
+            }
+        }
+        if (visaVal && extVal) {
+            const extCheck = document.getElementById("extCheck");
+            if (new Date(extVal) <= new Date(visaVal)) {
+                extCheck.textContent = "✅ 合法 (到期前申請)"; extCheck.className = "badge-ok";
+            } else {
+                extCheck.textContent = "❌ 違規 (簽證已逾期)"; extCheck.className = "badge-err";
+            }
+        }
+        const intervals = Array.from(rows).map(row => ({
+            s: row.querySelector(".start-date").value,
+            e: row.querySelector(".end-date").value,
+            isAbs: row.querySelector(".row-type").value === "Absence",
+            el: row
+        }));
+        intervals.forEach((item, i) => {
+            item.el.classList.remove("gap-error");
+            if (!item.s || !item.e) return;
+            const d  = Math.round((new Date(item.e) - new Date(item.s)) / 86400000) + 1;
+            const sA = item.isAbs ? d : 0, sS = item.isAbs ? 0 : d;
+            cAbs += sA; cStay += sS; total += d;
+            if (!item.el.classList.contains('gap-error') && !item.el.classList.contains('highlight-alert'))
+                item.el.className = item.isAbs ? 'row-absence' : 'row-stay';
+            const endD = new Date(item.e), startD = new Date(item.e);
+            startD.setDate(startD.getDate() - 364);
+            let r = 0;
+            intervals.forEach(curr => {
+                if (!curr.isAbs || !curr.s || !curr.e) return;
+                const oS = new Date(Math.max(startD, new Date(curr.s)));
+                const oE = new Date(Math.min(endD,   new Date(curr.e)));
+                if (oS <= oE) r += Math.round((oE - oS) / 86400000) + 1;
+            });
+            maxR = Math.max(maxR, r);
+            const rollCell = item.el.cells[6];
+            rollCell.innerText = r;
+            rollCell.className = r > 140 ? 'fw-bold col-roll-warn' : 'fw-bold col-roll-ok';
+            item.el.cells[4].innerText = sA;
+            item.el.cells[5].innerText = cAbs;
+            item.el.cells[7].innerHTML = `<span class="col-window-val">(${startD.toISOString().split('T')[0]}, ${item.e})</span>`;
+            item.el.cells[8].innerText = sS;
+            item.el.cells[9].innerText = cStay;
+            item.el.cells[10].innerText = total;
+            if (r > 140) item.el.classList.add("highlight-alert");
+            else         item.el.classList.remove("highlight-alert");
+            if (i > 0 && intervals[i-1].e) {
+                const g = Math.round((new Date(item.s) - new Date(intervals[i-1].e)) / 86400000);
+                if (g !== 1) {
+                    item.el.classList.add("gap-error");
+                    const gapType = g > 1 ? `中斷 ${g-1} 天` : `重疊 ${Math.abs(g-1)} 天`;
+                    gapMessages.push(`第 ${i} 段與第 ${i+1} 段：${gapType}`);
+                }
+            }
+        });
+        document.getElementById("maxAbsence").innerText   = maxR;
+        document.getElementById("budgetAbsence").innerText = 180 - maxR;
+
+        const reminderBox  = document.getElementById("reminderBox");
+        const reminderTxt  = document.getElementById("reminderTxt");
+        const reminderIcon = document.getElementById("reminderIcon");
+        if (maxR >= 180) {
+            reminderBox.className  = "reminder-box danger";
+            reminderIcon.textContent = "🚨";
+            reminderTxt.textContent  = "滾動離境天數已達 " + maxR + " 天，超出 ILR 法定上限 180 天！連續居留資格可能受損，請立即檢查行程。";
+        } else if (maxR >= 150) {
+            reminderBox.className  = "reminder-box warning";
+            reminderIcon.textContent = "⚠️";
+            reminderTxt.textContent  = "滾動離境天數已達 " + maxR + " 天，接近 ILR 法定上限 180 天，請謹慎安排未來出行計劃。";
+        } else {
+            reminderBox.className  = "reminder-box safe";
+            reminderIcon.textContent = "📅";
+            reminderTxt.textContent  = "滾動離境天數為 " + maxR + " 天，剩餘額度 " + (180 - maxR) + " 天，目前符合 ILR 連續居留要求。";
+        }
+        const banner = document.getElementById("gapAlertBanner");
+        if (gapMessages.length > 0) {
+            document.getElementById("gapAlertDetails").innerHTML = gapMessages.join("<br>");
+            banner.style.display = "block";
+        } else { banner.style.display = "none"; }
+        const tBody = document.getElementById("taxBody");
+        tBody.innerHTML = "";
+        ["2023","2024","2025","2026","2027"].forEach(y => {
+            const s = new Date(`${y}-04-06`), e = new Date(`${+y+1}-04-05`);
+            let stay = 0;
+            intervals.forEach(it => {
+                if (it.isAbs || !it.s || !it.e) return;
+                const oS = new Date(Math.max(s, new Date(it.s)));
+                const oE = new Date(Math.min(e, new Date(it.e)));
+                if (oS <= oE) stay += Math.round((oE - oS) / 86400000) + 1;
+            });
+            const badge = stay >= 183 ? '<span class="badge-resident">✅ 達標</span>' : '<span class="badge-nonres">非居民</span>';
+            tBody.innerHTML += `<tr><td>${y}–${(+y+1)%100 < 10 ? '0'+((+y+1)%100) : (+y+1)%100}</td><td class="fw-bold">${stay} 天</td><td>${badge}</td></tr>`;
+        });
+        setTimeout(showScrollHints, 100);
+    }
+
+    var _cjkFontB64 = null;
+    async function loadCJKFont() {
+        if (_cjkFontB64) return _cjkFontB64;
+        var urls = [
+            'https://cdn.jsdelivr.net/gh/justfont/open-huninn-font@master/font/jf-openhuninn-2.0.ttf',
+            'https://cdn.jsdelivr.net/gh/justfont/open-huninn-font@master/font/jf-openhuninn-1.1.ttf',
+            'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf',
+            'https://cdn.jsdelivr.net/gh/googlefonts/noto-cjk@main/Sans/Variable/TTF/Subset/NotoSansTC-VF.ttf'
+        ];
+        for (var i = 0; i < urls.length; i++) {
+            try {
+                var resp = await fetch(urls[i]);
+                if (!resp.ok) continue;
+                var buf = await resp.arrayBuffer();
+                var bytes = new Uint8Array(buf);
+                var bin = '';
+                var chunk = 0x8000;
+                for (var j = 0; j < bytes.length; j += chunk) {
+                    bin += String.fromCharCode.apply(null, bytes.subarray(j, j + chunk));
+                }
+                _cjkFontB64 = btoa(bin);
+                return _cjkFontB64;
+            } catch (e) { }
+        }
+        return null;
+    }
+
+    async function generatePDF() {
+        var btn = document.getElementById('btnSavePdf');
+        var oldLabel = btn.textContent;
+        if (typeof window.jspdf === 'undefined') {
+            alert('PDF 元件尚未載入，請確認網絡連線後重試。');
+            return;
+        }
+        try {
+            btn.textContent = '⏳ 產生中…';
+            btn.disabled = true;
+            updatePrintDateTime();
+
+            var fontB64 = await loadCJKFont();
+            if (!fontB64) {
+                alert('中文字型載入失敗，請確認網絡連線後重試。');
+                return;
+            }
+
+            var jsPDFCtor = window.jspdf.jsPDF;
+            var pdf = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+            pdf.addFileToVFS('NotoSansTC.ttf', fontB64);
+            pdf.addFont('NotoSansTC.ttf', 'NotoTC', 'normal');
+            pdf.setFont('NotoTC');
+
+            var pageW = 297, margin = 10;
+            var now = new Date();
+            var opts = { timeZone:'Europe/London', year:'numeric', month:'2-digit', day:'2-digit',
+                         hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false };
+            var dtStr = now.toLocaleString('zh-Hant', opts).replace(/\//g, '-');
+
+            pdf.setFillColor(30, 58, 95);
+            pdf.rect(margin, margin, pageW - margin*2, 16, 'F');
+            pdf.setTextColor(255, 255, 255);
+            pdf.setFontSize(16);
+            pdf.setLineWidth(0.25); pdf.text('ILR 行程動態規劃', margin + 4, margin + 7, { renderingMode: 'fillThenStroke' });
+            pdf.setFontSize(10);
+            pdf.setTextColor(184, 208, 232);
+            pdf.text('HTML version v82.26.18 ｜ 列印時間（英國）：' + dtStr, margin + 4, margin + 13);
+
+            var y = margin + 22;
+
+            pdf.setFontSize(12);
+            pdf.setTextColor(10, 16, 28);
+            var maxR   = document.getElementById('maxAbsence').innerText;
+            var budget = document.getElementById('budgetAbsence').innerText;
+            var remind = document.getElementById('reminderTxt').textContent;
+            pdf.text('當前最高滾動天數：' + maxR + ' / 180 天　　未來剩餘旅遊額度：' + budget + ' 天', margin, y);
+            y += 6;
+            pdf.setFontSize(10.5);
+            var mr = parseInt(maxR, 10);
+            if (mr >= 180)      pdf.setTextColor(127, 29, 29);
+            else if (mr >= 150) pdf.setTextColor(146, 64, 14);
+            else                pdf.setTextColor(20, 83, 45);
+            pdf.text('行動提醒：' + remind, margin, y);
+            y += 8;
+
+            pdf.setFontSize(10.5);
+            pdf.setTextColor(10, 16, 28);
+
+            var entryV = document.getElementById('entryDate').value;
+            var visaV  = document.getElementById('visaDate').value;
+            var extV   = document.getElementById('extDate').value;
+            var ilrV   = document.getElementById('ilrTargetDate').innerText;
+            var natV   = document.getElementById('natTargetDate').innerText;
+            var ilrChk = document.getElementById('ilrPresenceCheck') ? document.getElementById('ilrPresenceCheck').textContent : '';
+
+            pdf.text('初始入境日：' + entryV + ' ── 英國永居 5 年連續居留時間之起算點', margin, y); y += 5.5;
+            var extChkEl = document.getElementById('extCheck');
+            var extChk = extChkEl ? extChkEl.textContent.replace(/[✅❌]/g,'').trim() : '';
+            pdf.text('Visa 到期日：' + visaV + ' ｜ 續期申請日：' + extV + ' ── ' + extChk, margin, y); y += 5.5;
+            pdf.text('ILR 最早申請日：' + ilrV + ' ── ' + ilrChk.replace(/[✅⚠️]/g,'').trim(), margin, y); y += 5.5;
+            pdf.text('入籍最早申請日：' + natV + ' ── 取得永居（ILR）滿 1 年後方能申請入籍', margin, y); y += 7;
+
+            var head = [['開始日期','結束日期','時段類型','備註','單次離境','累積離境','滾動天數','滾動窗口日期','單次在英','累積在英','累積總天數']];
+            var body = [];
+            var rowMeta = [];
+            document.querySelectorAll('#tableBody tr').forEach(function(row) {
+                var s  = row.querySelector('.start-date').value;
+                var e  = row.querySelector('.end-date').value;
+                var tp = row.querySelector('.row-type').value;
+                var nt = row.querySelector('.row-note').value;
+                var c  = row.cells;
+                var win = c[7].textContent.trim();
+                body.push([s, e, tp, nt, c[4].innerText, c[5].innerText, c[6].innerText, win, c[8].innerText, c[9].innerText, c[10].innerText]);
+                rowMeta.push({
+                    abs:  tp === 'Absence',
+                    warn: row.classList.contains('highlight-alert'),
+                    gap:  row.classList.contains('gap-error')
+                });
+            });
+
+            pdf.autoTable({
+                head: head,
+                body: body,
+                startY: y,
+                margin: { left: margin, right: margin },
+                styles: { font: 'NotoTC', fontSize: 9, cellPadding: 1.8, textColor: [10,16,28], lineColor: [196,212,228], lineWidth: 0.15, halign: 'center' },
+                headStyles: { fillColor: [30,58,95], textColor: [212,232,248], fontSize: 9, halign: 'center' },
+                columnStyles: { 3: { halign: 'left' }, 7: { fontSize: 8 } },
+                didParseCell: function(data) {
+                    if (data.section !== 'body') return;
+                    var m = rowMeta[data.row.index];
+                    if (!m) return;
+                    if (m.gap)       data.cell.styles.fillColor = [254,202,202];
+                    else if (m.warn) data.cell.styles.fillColor = [254,240,138];
+                    else if (m.abs)  data.cell.styles.fillColor = [250,227,200];
+                    else             data.cell.styles.fillColor = [214,238,221];
+                    if (data.column.index === 2) {
+                        data.cell.styles.textColor = m.abs ? [185,28,28] : [22,101,52];
+                        data.cell.styles.fontStyle = 'normal';
+                    }
+                }
+            });
+
+            var taxHead = [['稅務年度','在英天數','狀態']];
+            var taxBody = [];
+            document.querySelectorAll('#taxBody tr').forEach(function(tr) {
+                var c = tr.cells;
+                taxBody.push([c[0].innerText, c[1].innerText, c[2].innerText.replace('✅','').trim()]);
+            });
+            pdf.addPage();
+            var taxY = 14;
+            pdf.setFontSize(11);
+            pdf.setTextColor(30,58,95);
+            pdf.text('英國稅務居民 (183天/年)', margin, taxY);
+            pdf.autoTable({
+                head: taxHead,
+                body: taxBody,
+                startY: taxY + 2,
+                margin: { left: margin },
+                tableWidth: 110,
+                styles: { font: 'NotoTC', fontSize: 9.5, cellPadding: 1.8, textColor: [10,16,28], lineColor: [196,212,228], lineWidth: 0.15, halign: 'center' },
+                headStyles: { fillColor: [30,58,95], textColor: [212,232,248] }
+            });
+
+            var blob = pdf.output('blob');
+            var fname = 'ILR 行程動態規劃 v82.26.18.pdf';
+            var file = new File([blob], fname, { type: 'application/pdf' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({ files: [file], title: fname });
+            } else {
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url; a.download = fname;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                setTimeout(function() { URL.revokeObjectURL(url); }, 5000);
+            }
+        } catch (err) {
+            if (err && err.name !== 'AbortError') alert('PDF 產生失敗：' + (err.message || err));
+        } finally {
+            btn.textContent = oldLabel;
+            btn.disabled = false;
+        }
+    }
+
+    window.onload = () => {
+        updateUKTime();
+        setInterval(updateUKTime, 1000);
+        document.getElementById("tableBody").innerHTML = "";
+        initialData.forEach(d => addRow(d.s, d.e, d.type, d.note));
+        const entryVal = document.getElementById("entryDate").value;
+        const firstStart = document.querySelector("#tableBody tr:first-child .start-date");
+        if (firstStart && entryVal) firstStart.value = entryVal;
+        setTimeout(showScrollHints, 300);
+    };
+</script>
+</body>
+</html>
